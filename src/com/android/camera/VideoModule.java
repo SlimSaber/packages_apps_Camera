@@ -80,6 +80,7 @@ import com.android.camera.ui.RotateTextToast;
 import com.android.camera.ui.TwoStateImageView;
 import com.android.camera.ui.ZoomRenderer;
 import com.android.gallery3d.common.ApiHelper;
+import com.android.gallery3d.util.AccessibilityUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -483,14 +484,13 @@ public class VideoModule implements CameraModule,
             // ignore
         }
 
-        Thread startPreviewThread = new Thread(new Runnable() {
+        readVideoPreferences();
+        new Thread(new Runnable() {
             @Override
             public void run() {
-                readVideoPreferences();
                 startPreview();
             }
-        });
-        startPreviewThread.start();
+        }).start();
 
         initializeControlByIntent();
         initializeOverlay();
@@ -879,7 +879,12 @@ public class VideoModule implements CameraModule,
             }
             readVideoPreferences();
             resizeForPreviewAspectRatio();
-            startPreview();
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    startPreview();
+                }
+            }).start();
         }
 
         // Initializing it here after the preview is started.
@@ -930,6 +935,8 @@ public class VideoModule implements CameraModule,
             }
         }
 
+        mPreviewing = true;
+
         setDisplayOrientation();
         mActivity.mCameraDevice.setDisplayOrientation(mCameraDisplayOrientation);
         setCameraParameters();
@@ -937,12 +944,16 @@ public class VideoModule implements CameraModule,
         try {
             if (!effectsActive()) {
                 if (ApiHelper.HAS_SURFACE_TEXTURE) {
+<<<<<<< HEAD
                     SurfaceTexture sT = null;
 
                     if (Util.mSwitchCamera) {
                         sT = Util.newSurfaceLayer(mCameraDisplayOrientation, mParameters, mActivity);
                     } else {
                         sT = ((CameraScreenNail) mActivity.mCameraScreenNail).getSurfaceTexture();
+                    }
+                    if (sT == null) {
+                        return; // The texture has been destroyed (pause, etc)
                     }
                     mActivity.mCameraDevice.setPreviewTextureAsync(sT);
                 } else {
@@ -956,6 +967,17 @@ public class VideoModule implements CameraModule,
         } catch (Throwable ex) {
             closeCamera();
             throw new RuntimeException("startPreview failed", ex);
+        } finally {
+            mActivity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (mActivity.mOpenCameraFail) {
+                        Util.showErrorAndFinish(mActivity, R.string.cannot_connect_camera);
+                    } else if (mActivity.mCameraDisabled) {
+                        Util.showErrorAndFinish(mActivity, R.string.camera_disabled);
+                    }
+                }
+            });
         }
 
         mPreviewing = true;
@@ -1023,9 +1045,7 @@ public class VideoModule implements CameraModule,
     private void releasePreviewResources() {
         if (ApiHelper.HAS_SURFACE_TEXTURE) {
             CameraScreenNail screenNail = (CameraScreenNail) mActivity.mCameraScreenNail;
-            if (screenNail.getSurfaceTexture() != null) {
-                screenNail.releaseSurfaceTexture();
-            }
+            screenNail.releaseSurfaceTexture();
             if (!ApiHelper.HAS_SURFACE_TEXTURE_RECORDING) {
                 mHandler.removeMessages(HIDE_SURFACE_VIEW);
                 mPreviewSurfaceView.setVisibility(View.GONE);
@@ -1663,6 +1683,11 @@ public class VideoModule implements CameraModule,
             }
         }
 
+        // Make sure the video recording has started before announcing
+        // this in accessibility.
+        AccessibilityUtils.makeAnnouncement(mShutterButton,
+                mActivity.getString(R.string.video_recording_started));
+
         // The parameters may have been changed by MediaRecorder upon starting
         // recording. We need to alter the parameters if we support camcorder
         // zoom. To reduce latency when setting the parameters during zoom, we
@@ -1784,6 +1809,8 @@ public class VideoModule implements CameraModule,
                 mCurrentVideoFilename = mVideoFilename;
                 Log.v(TAG, "stopVideoRecording: Setting current video filename: "
                         + mCurrentVideoFilename);
+                AccessibilityUtils.makeAnnouncement(mShutterButton,
+                        mActivity.getString(R.string.video_recording_stopped));
             } catch (RuntimeException e) {
                 Log.e(TAG, "stop fail",  e);
                 if (mVideoFilename != null) deleteVideoFile(mVideoFilename);

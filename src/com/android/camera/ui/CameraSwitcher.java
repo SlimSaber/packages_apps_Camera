@@ -49,6 +49,7 @@ public class CameraSwitcher extends RotateImageView
 
     private CameraSwitchListener mListener;
     private int mCurrentIndex;
+    private int[] mModuleIds;
     private int[] mDrawIds;
     private int mItemSize;
     private View mPopup;
@@ -79,8 +80,9 @@ public class CameraSwitcher extends RotateImageView
         mIndicator = context.getResources().getDrawable(R.drawable.ic_switcher_menu_indicator);
     }
 
-    public void setDrawIds(int[] drawids) {
+    public void setIds(int[] moduleids, int[] drawids) {
         mDrawIds = drawids;
+        mModuleIds = moduleids;
     }
 
     public void setCurrentIndex(int i) {
@@ -102,7 +104,7 @@ public class CameraSwitcher extends RotateImageView
         hidePopup();
         if ((ix != mCurrentIndex) && (mListener != null)) {
             setCurrentIndex(ix);
-            mListener.onCameraSelected(ix);
+            mListener.onCameraSelected(mModuleIds[ix]);
         }
     }
 
@@ -227,7 +229,7 @@ public class CameraSwitcher extends RotateImageView
     private void updateInitialTranslations() {
         if (getResources().getConfiguration().orientation
                 == Configuration.ORIENTATION_PORTRAIT) {
-            mTranslationX = -getWidth() / 2 ;
+            mTranslationX = -getWidth() / 2;
             mTranslationY = getHeight();
         } else {
             mTranslationX = getWidth();
